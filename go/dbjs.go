@@ -1,6 +1,6 @@
-// file db.go
+// file dbjs.go
 
-// +build !js
+// +build js
 
 package db
 
@@ -11,11 +11,7 @@ import (
 	"strconv"
 	"strings"
 	STRC "github.com/IngenieroRicardo/db/STRUCTURES"
-	LDB "github.com/IngenieroRicardo/db/LDB"
-	MDB "github.com/IngenieroRicardo/db/MDB"
-	PDB "github.com/IngenieroRicardo/db/PDB"
-	SDB "github.com/IngenieroRicardo/db/SDB"
-	ODB "github.com/IngenieroRicardo/db/ODB"
+	LDB "github.com/IngenieroRicardo/db/WASM"
 	"database/sql"
 	"sync"
 	"time"
@@ -70,17 +66,10 @@ func LoadSQL(driver string, conexion string, maxOpenConns, maxIdleConns int, con
     var db *sql.DB
     var err error
     
-    switch driver {
-    case "sqlite3":
+    if driver == "sqlite3" && conexion == ":memory:" {
         db, err = LDB.OpenConnection(driver, conexion)
-    case "sqlserver":
-        db, err = SDB.OpenConnection(driver, conexion)
-    case "postgres":
-        db, err = PDB.OpenConnection(driver, conexion)
-    case "oracle":
-        db, err = ODB.OpenConnection("godror", conexion)
-    default:
-        db, err = MDB.OpenConnection(driver, conexion)
+    } else {
+        return nil, fmt.Errorf("No se logro establecer conexion")
     }
     
     if err != nil {
@@ -163,17 +152,12 @@ func SQLrunonLoad(connector *Connector, query string, args ...string) STRC.Inter
         }
     }
 
-    switch connector.driver {
-    case "sqlite3":
+    if connector.driver == "sqlite3" {
         return LDB.SqlRunOnConn(connector.db, query, goArgs...)
-    case "sqlserver":
-        return SDB.SqlRunOnConn(connector.db, query, goArgs...)
-    case "postgres":
-        return PDB.SqlRunOnConn(connector.db, query, goArgs...)
-    case "oracle":
-        return ODB.SqlRunOnConn(connector.db, query, goArgs...)
-    default:
-        return MDB.SqlRunOnConn(connector.db, query, goArgs...)
+    } else {
+        result.Json = createErrorJSON(fmt.Sprintf("Error con la conexion"))
+        result.Is_error = 1
+        return result
     }
 }
 
@@ -245,16 +229,12 @@ func SQLrun(driver string, conexion string, query string, args ...string) STRC.I
 			goArgs = append(goArgs, arg)
 		}
 	}
-	switch driver {
-	case "sqlite3":
-		return LDB.SqlRunInternal(driver, conexion, query, goArgs...)
-	case "sqlserver":
-		return SDB.SqlRunInternal(driver, conexion, query, goArgs...)
-	case "postgres":
-		return PDB.SqlRunInternal(driver, conexion, query, goArgs...)
-	case "oracle":
-		return ODB.SqlRunInternal("godror", conexion, query, goArgs...)
-	default:
-		return MDB.SqlRunInternal(driver, conexion, query, goArgs...)
-	}
+
+    if driver == "sqlite3" && conexion == ":memory:" {
+        return LDB.SqlRunInternal(driver, conexion, query, goArgs...)
+    } else {
+        result.Json = createErrorJSON(fmt.Sprintf("No se logro establecer conexion"))
+        result.Is_error = 1
+        return result
+    }
 }
